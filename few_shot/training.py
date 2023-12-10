@@ -28,7 +28,6 @@ def gradient_step(model: nn.Module, optimiser: Optimizer, loss_fn: Callable,
 
     return loss, y_pred
 
-
 def batch_metrics(model: nn.Module, y_pred: torch.Tensor, y: torch.Tensor,
                   metrics: List[Union[str, Callable]], batch_logs: dict):
     """Calculate metrics for current batch
@@ -47,7 +46,6 @@ def batch_metrics(model: nn.Module, y_pred: torch.Tensor, y: torch.Tensor,
         else:
             batch_logs = m(y, y_pred)
     return batch_logs
-
 
 def fit_model(model: nn.Module, optimizer: Optimizer, loss_fn: Callable, epochs: int, dataloader: DataLoader, 
               prepare_batch: Callable, metrics: List[Union[str, Callable]], callbacks: List[Callback],
