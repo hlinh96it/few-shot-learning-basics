@@ -1,3 +1,4 @@
+from typing import Tuple
 import torch
 import torch.nn as nn
 import torchvision
@@ -19,16 +20,6 @@ def get_convnet(output_size):
                                         num_init_features=64, num_classes=output_size)
     
 def split_batch(imgs, targets):
-    """
-     Split images and targets into support and query. This is used to reduce the number of queries to one batch at a time
-     
-     Args:
-     	 imgs: A list of images in shape ( batch_size num_images )
-     	 targets: A list of targets in shape ( batch_size num_targets )
-     
-     Returns: 
-     	 A tuple of support images and query images for each
-    """
     support_imgs, query_imgs = imgs.chunk(2, dim=0)  # split into support set and query set
     support_targets, query_targets = targets.chunk(2, dim=0)
     return support_imgs, query_imgs, support_targets, query_targets
@@ -46,16 +37,15 @@ class PrototypicalNet(pl.LightningModule):
         return [optimizer], [scheduler]
     
     @staticmethod
-    def calculate_prototypes(features, targets):
+    def calculate_prototypes(features: torch.Tensor, targets: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Calculate prototypes for each class. This is a helper function to make it easier to use in inference
-        
+        Calculates class prototypes from features and targets.
         Args:
-            features: torch. Tensor of shape [ batch_size, num_features ]
-            targets: torch. Tensor of shape [ batch_size, num_classes ]
-        
+            features: torch.Tensor - encoded raw data to L-dimension vector by embedding function f_theta
+            targets: torch.Tensor - labels of coresponding features
         Returns: 
-            tuple of prototypes and classes (sorted by class)
+            prototypes: Calculated prototypes
+            classes: Available classes
         """
         classes, _ = torch.unique(targets).sort()  # determine available classes
         prototypes = []
@@ -64,41 +54,42 @@ class PrototypicalNet(pl.LightningModule):
         prototypes = torch.stack(prototypes, dim=0)
         return prototypes, classes
     
-    def classify_features(self, prototypes, classes, features, targets):
+    def classify_features(self, prototypes: torch.Tensor, classes: torch.Tensor, features: torch.Tensor, 
+                          targets: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Classify features according to prototypes. This is a wrapper around torch.nn.log_softmax 
-        that takes into account the euclidian distance between the features and prototypes
-        
+        Classify features based on prototypes and calculate accuracy.
         Args:
-            prototypes: Tensor of shape [ batch_size n_features ]
-            classes: Tensor of shape [ batch_size n_classes ]
-            features: Tensor of shape [ batch_size n_features ]
-            targets: Tensor of shape [ batch_size ] with target values
-        
+            prototypes: torch.Tensor - Prototypes for each class
+            classes: torch.Tensor - Class labels
+            features: torch.Tensor - Features to classify
+            targets: torch.Tensor - True class labels
         Returns: 
-            Tuple of ( logits labels accuracy ) for each class
+            preds: torch.Tensor - Predicted class probabilities
+            labels: torch.Tensor - True class labels
+            acc: torch.Tensor - Classification accuracy
+        - Calculate Euclidian distance between features and prototypes
+        - Convert distances to probabilities using softmax
+        - Compare predicted and true class labels to calculate accuracy, convert to one-hot encoder and argmax index
+        - Return predictions, true labels and accuracy
         """
         distance = torch.pow(prototypes[None, :] - features[:, None], 2).sum(dim=2)  # calculate euclidian distance
-        preds = torch.nn.functional.log_softmax(-distance, dim=1)
-        labels = (classes[None, :] == targets[:, None]).long().argmax(dim=-1)
+        preds = torch.nn.functional.log_softmax(-distance, dim=1)  # convert from distance (negative) to probability
+        labels = (classes[None, :] == targets[:, None]).long().argmax(dim=-1) 
         acc = (preds.argmax(dim=1) == labels).float().mean()
         return preds, labels, acc
     
     def calculate_loss(self, batch, mode):
         """
-        Calculate loss for a batch of images
-        
+        Calculates loss for a batch during training or validation.
         Args:
-            batch: tuple of images and targets. Each image is a 2 - dim numpy array of shape 
-        [ batch_size height width 3 ]
-            mode: 'train' or 'test '. If 'train' the batch is split into support and query sets.
-        
+            batch: Batch of images and targets
+            mode: Whether this is for 'train' or 'val' mode
         Returns: 
-            floating - point loss in range [ 0 1 ]
+            loss: Cross entropy loss between predictions and targets
         """
         imgs, targets = batch
         features = self.model(imgs)  # encode all images of support and query set
-        support_features, query_features, support_targets, query_targets = split_batch(features, targets)
+        support_features, query_features, support_targets, query_targets = split_batch(features, targets)  
         prototypes, classes = PrototypicalNet.calculate_prototypes(support_features, support_targets)
         predictions, labels, acc = self.classify_features(prototypes, classes, query_features, query_targets)
         loss = torch.nn.functional.cross_entropy(predictions, labels)
