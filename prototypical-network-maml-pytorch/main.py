@@ -9,7 +9,7 @@ from torchvision.datasets import CIFAR100
 
 from dataloader import ImageDataset
 from fewshot_batch_sampler import FewShotBatchSampler
-from trainer import train_model
+from trainer import train_model, test_model
 from prototypical_net import PrototypicalNet
 device = torch.device('mps')
 
@@ -22,7 +22,7 @@ if __name__ == '__main__':
     DATA_MEANS = torch.Tensor([0.5183975 , 0.49192241, 0.44651328])
     DATA_STD = torch.Tensor([0.26770132, 0.25828985, 0.27961241])
     n_way = 5
-    k_shot = 4
+    k_shot = 32
 
     # %% Load CIFAR100 dataset
     cifar_train_set = CIFAR100(root='/Users/hoanglinh96nl', download=True, train=True,
@@ -58,5 +58,10 @@ if __name__ == '__main__':
                                                                 k_shot=k_shot, include_query=True, shuffle=False, shuffle_once=True))
 
     # %% Training few-shot learning model
-    model = train_model(model_class=PrototypicalNet, proto_dim=64, learning_rate=2e-4,
+    model = train_model(model_class=PrototypicalNet, proto_dim=128, learning_rate=0.001,
                         train_loader=train_dataloader, val_loader=val_dataloader)
+    
+    # %% Test model
+    test_dataloader = DataLoader(test_set, num_workers=9, persistent_workers=True,
+                                 batch_sampler=FewShotBatchSampler(test_set.targets, n_way, k_shot))
+    test_model(PrototypicalNet, test_dataloader)

@@ -53,24 +53,19 @@ class FewShotBatchSampler(object):
             self.class_list = np.array(self.class_list)[np.argsort(sort_idx)].tolist()
 
     def __iter__(self):
-        # Shuffle the data in the data set.
         if self.shuffle:
             self.shuffle_data()
 
-        # in case no key in the dict, used to store index of sample to add to batch
-        start_index = defaultdict(int)
-        # generator for each iteration of the iteration
-        for it in range(self.iterations):
-            # select N classes for a batch
-            class_batch = self.class_list[it*self.n_way: (it+1)*self.n_way]
-            index_batch = []
+        start_index = defaultdict(int)  # in case no key in the dict, used to store index of sample to add to batch
+        for it in range(self.iterations):  # generator for each iteration of the iteration
+            class_batch = self.class_list[it*self.n_way: (it+1)*self.n_way]  # select N classes for a batch
+            
             # This method is used to select k samples for each class
+            index_batch = []
             for c in class_batch:
-                # for each class, we select k samples and add to a batch
-                index_batch.extend(
-                    self.indices_per_class[c][start_index[c]: start_index[c] + self.k_shot])
+                index_batch.extend(self.indices_per_class[c][start_index[c]: start_index[c] + self.k_shot])
                 start_index[c] += self.k_shot
-            # Include the query in the index_batch.
+  
             if self.include_query:
                 index_batch = index_batch[::2] + index_batch[1::2]
             yield index_batch
@@ -79,6 +74,14 @@ class FewShotBatchSampler(object):
         return self.iterations
 
     def shuffle_data(self):
+        """Shuffle data indices randomly
+        Args:
+            self: Shuffle data indices for this object
+        Returns: 
+            None: Shuffle is done in-place
+        - Generate random permutation for each class' indices
+        - Apply permutation to rearrange indices within each class  
+        - Randomly shuffle ordering of classes"""
         for c in self.classes:
             perm = torch.randperm(self.indices_per_class[c].shape[0])
             self.indices_per_class[c] = self.indices_per_class[c][perm]

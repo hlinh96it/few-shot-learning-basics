@@ -7,15 +7,11 @@ import pytorch_lightning as pl
 
 
 def get_convnet(output_size):
-    """
-     Create a convolutional neural network. It is used to train and test the neural network.
-     
-     Args:
-     	 output_size: Number of classes in the output.
-     
-     Returns: 
-     	 : class : ` torchvision. models. DenseNet `
-    """
+    """Builds a DenseNet convolutional network model
+    Args:
+        output_size: Number of classes for the output layer
+    Returns:
+        model: DenseNet model with output layer matching output_size"""
     return torchvision.models.DenseNet(growth_rate=32, block_config=(6, 6, 6, 6), bn_size=2,
                                         num_init_features=64, num_classes=output_size)
     
@@ -67,10 +63,6 @@ class PrototypicalNet(pl.LightningModule):
             preds: torch.Tensor - Predicted class probabilities
             labels: torch.Tensor - True class labels
             acc: torch.Tensor - Classification accuracy
-        - Calculate Euclidian distance between features and prototypes
-        - Convert distances to probabilities using softmax
-        - Compare predicted and true class labels to calculate accuracy, convert to one-hot encoder and argmax index
-        - Return predictions, true labels and accuracy
         """
         distance = torch.pow(prototypes[None, :] - features[:, None], 2).sum(dim=2)  # calculate euclidian distance
         preds = torch.nn.functional.log_softmax(-distance, dim=1)  # convert from distance (negative) to probability
@@ -103,5 +95,7 @@ class PrototypicalNet(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         _ = self.calculate_loss(batch, mode='val')
         
+    def test_step(self, batch, batch_idx):
+        _ = self.calculate_loss(batch, mode='test')
         
      
